@@ -150,6 +150,9 @@
         .movie-rating { color: var(--lime); letter-spacing: .08em; }
         .movie-review { overflow: hidden; display: -webkit-box; margin: 9px 0 0; color: #c0c7bd; font: italic 13px/1.55 var(--serif); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
         .card-actions { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
+        .watch-done { display: inline-flex; align-items: center; gap: 7px; color: var(--lime); cursor: pointer; font-size: 11px; font-weight: 600; }
+        .watch-done input { width: 15px; height: 15px; margin: 0; accent-color: var(--lime); cursor: pointer; }
+        .watch-done:focus-within { outline: 2px solid var(--lime); outline-offset: 3px; }
         .text-action { padding: 0; border: 0; background: none; color: var(--lime); cursor: pointer; font-size: 11px; font-weight: 600; }
         .text-action.delete { color: var(--muted); }
         .text-action:hover { color: var(--text); }
@@ -475,18 +478,23 @@
                 const actions = document.createElement("div");
                 actions.className = "card-actions";
                 if (activeStatus === "watchlist") {
-                    const watchedButton = document.createElement("button");
-                    watchedButton.className = "text-action";
-                    watchedButton.type = "button";
-                    watchedButton.textContent = "Mark as watched";
-                    watchedButton.addEventListener("click", () => {
+                    const watchedLabel = document.createElement("label");
+                    watchedLabel.className = "watch-done";
+                    const watchedCheckbox = document.createElement("input");
+                    watchedCheckbox.type = "checkbox";
+                    watchedCheckbox.setAttribute("aria-label", `Mark ${movie.title} as watched`);
+                    const watchedText = document.createElement("span");
+                    watchedText.textContent = "Watched";
+                    watchedCheckbox.addEventListener("change", () => {
+                        if (!watchedCheckbox.checked) return;
                         movie.status = "watched";
                         movie.date = new Date().toISOString().slice(0, 10);
                         movie.rating = "";
                         saveMovies();
                         renderMovies();
                     });
-                    actions.appendChild(watchedButton);
+                    watchedLabel.append(watchedCheckbox, watchedText);
+                    actions.appendChild(watchedLabel);
                 }
                 const deleteButton = document.createElement("button");
                 deleteButton.className = "text-action delete";
