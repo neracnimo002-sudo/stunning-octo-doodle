@@ -138,7 +138,7 @@
         .poster-picker { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
         .poster-picker input[type="file"] { min-width: 0; min-height: 42px; padding: 7px; border: 1px solid var(--line); background: #121914; color: var(--muted); font-size: 11px; }
         .poster-picker input[type="file"]::file-selector-button { margin-right: 9px; padding: 7px 9px; border: 1px solid var(--line); background: var(--panel-light); color: var(--text); cursor: pointer; font: 11px var(--sans); }
-        .poster-search-button { min-height: 42px; padding: 0 10px; }
+        .poster-search-button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px; text-decoration: none; white-space: nowrap; }
         .poster-preview { width: 44px; height: 66px; flex: none; border: 1px solid var(--line); object-fit: cover; }
         .field-help { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
         .poster-credit { display: inline-block; margin-top: 8px; color: var(--muted); font-size: 10px; text-underline-offset: 3px; }
@@ -301,7 +301,7 @@
                 <div class="field"><label for="genre">Genre <span class="optional">(optional)</span></label><input id="genre" name="genre" type="text" placeholder="Drama, comedy..." maxlength="50"></div>
                 <div class="field"><label for="year">Release year <span class="optional">(optional)</span></label><input id="year" name="year" type="number" placeholder="2024" min="1888" max="2100"></div>
             </div>
-            <div class="field"><label for="poster-file">Movie poster <span class="optional">(optional)</span></label><div class="poster-picker"><input id="poster-file" name="poster" type="file" accept="image/jpeg,image/png,image/webp,image/avif"><button class="quiet-button poster-search-button" id="find-poster" type="button">Find online</button><img class="poster-preview" id="poster-preview" alt="Selected poster preview" hidden></div><p class="field-help" id="poster-help" aria-live="polite">Upload an image or search Wikipedia for a poster.</p><button class="text-action" id="clear-poster" type="button" hidden>Remove poster</button></div>
+            <div class="field"><label for="poster-file">Movie poster <span class="optional">(optional)</span></label><div class="poster-picker"><input id="poster-file" name="poster" type="file" accept="image/jpeg,image/png,image/webp,image/avif"><a class="quiet-button poster-search-button" id="find-poster" href="https://www.google.com/search?tbm=isch&amp;q=movie+poster" target="_blank" rel="noopener noreferrer">Search Google Images</a><img class="poster-preview" id="poster-preview" alt="Selected poster preview" hidden></div><p class="field-help" id="poster-help" aria-live="polite">Search Google Images, then upload the poster image.</p><button class="text-action" id="clear-poster" type="button" hidden>Remove poster</button></div>
             <div class="field"><label for="status">Add to</label><select id="status" name="status"><option value="watched">Watched</option><option value="watchlist">Want to watch</option></select></div>
             <div class="form-row" id="watched-fields">
                 <div class="field"><label for="date">Date watched</label><input id="date" name="date" type="date"></div>
@@ -336,11 +336,9 @@
         const posterFile = document.getElementById("poster-file");
         const posterPreview = document.getElementById("poster-preview");
         const posterHelp = document.getElementById("poster-help");
-        const findPosterButton = document.getElementById("find-poster");
+        const findPosterLink = document.getElementById("find-poster");
         const clearPosterButton = document.getElementById("clear-poster");
         let posterPreviewUrl = "";
-        let onlinePosterUrl = "";
-        let onlinePosterSource = "";
         let activeStatus = "watched";
 
         function saveMovies() {
@@ -524,12 +522,10 @@
         function resetPosterPreview() {
             if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
             posterPreviewUrl = "";
-            onlinePosterUrl = "";
-            onlinePosterSource = "";
             posterPreview.removeAttribute("src");
             posterPreview.hidden = true;
             posterFile.value = "";
-            posterHelp.textContent = "Upload an image or search Wikipedia for a poster.";
+            posterHelp.textContent = "Search Google Images, then upload the poster image.";
             clearPosterButton.hidden = true;
         }
 
@@ -561,12 +557,10 @@
             const file = posterFile.files[0];
             if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
             posterPreviewUrl = "";
-            onlinePosterUrl = "";
-            onlinePosterSource = "";
             posterPreview.removeAttribute("src");
             posterPreview.hidden = true;
             clearPosterButton.hidden = true;
-            posterHelp.textContent = "Upload an image or search Wikipedia for a poster.";
+            posterHelp.textContent = "Search Google Images, then upload the poster image.";
             if (!file) return;
             if (!file.type.startsWith("image/") || file.size > 10 * 1024 * 1024) {
                 posterFile.value = "";
@@ -580,61 +574,21 @@
             posterHelp.textContent = file.name;
         });
 
-        async function findOnlinePoster() {
+        function updatePosterSearchLink() {
             const title = document.getElementById("title").value.trim();
             const year = document.getElementById("year").value.trim();
-            if (!title) {
-                posterHelp.textContent = "Enter a movie title first.";
-                document.getElementById("title").focus();
-                return;
-            }
-            findPosterButton.disabled = true;
-            findPosterButton.textContent = "Searching...";
-            posterHelp.textContent = "Searching Wikipedia for a poster...";
-            try {
-                const candidates = [...new Set([title, year ? `${title} (${year} film)` : "", `${title} (film)`].filter(Boolean))];
-                let result = null;
-                for (const candidate of candidates) {
-                    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(candidate.replace(/\s+/g, "_"))}`;
-                    const response = await fetch(url, { headers: { Accept: "application/json" } });
-                    if (!response.ok) continue;
-                    const page = await response.json();
-                    const imageUrl = page.thumbnail?.source ? new URL(page.thumbnail.source) : null;
-                    const sourceUrl = page.content_urls?.desktop?.page ? new URL(page.content_urls.desktop.page) : null;
-                    if (imageUrl?.protocol === "https:" && imageUrl.hostname === "upload.wikimedia.org" && sourceUrl?.origin === "https://en.wikipedia.org") {
-                        result = { imageUrl: imageUrl.href, sourceUrl: sourceUrl.href, pageTitle: page.title };
-                        break;
-                    }
-                }
-                if (!result) throw new Error("No poster found. Try another title or upload an image instead.");
-                if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
-                posterPreviewUrl = "";
-                posterFile.value = "";
-                onlinePosterUrl = result.imageUrl;
-                onlinePosterSource = result.sourceUrl;
-                posterPreview.src = result.imageUrl;
-                posterPreview.hidden = false;
-                clearPosterButton.hidden = false;
-                posterHelp.textContent = `Found ${result.pageTitle} on Wikipedia.`;
-            } catch (error) {
-                posterHelp.textContent = error.message || "Poster search failed. Try again or upload an image.";
-            } finally {
-                findPosterButton.disabled = false;
-                findPosterButton.textContent = "Find online";
-            }
+            const query = [title, year, "movie poster"].filter(Boolean).join(" ");
+            findPosterLink.href = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
         }
 
-        findPosterButton.addEventListener("click", findOnlinePoster);
         clearPosterButton.addEventListener("click", resetPosterPreview);
-        document.getElementById("title").addEventListener("input", () => {
-            if (!onlinePosterUrl) return;
-            resetPosterPreview();
-            posterHelp.textContent = "Title changed. Search again for the matching poster.";
-        });
+        document.getElementById("title").addEventListener("input", updatePosterSearchLink);
+        document.getElementById("year").addEventListener("input", updatePosterSearchLink);
 
         function openDialog() {
             resetPosterPreview();
             form.reset();
+            updatePosterSearchLink();
             statusSelect.value = activeStatus;
             document.getElementById("date").value = new Date().toISOString().slice(0, 10);
             syncFormStatus();
@@ -656,8 +610,6 @@
             const data = new FormData(form);
             const poster = data.get("poster");
             let posterData = "";
-            let posterUrl = onlinePosterUrl;
-            let posterSource = onlinePosterSource;
             if (poster instanceof File && poster.size) {
                 if (poster.size > 10 * 1024 * 1024) {
                     posterHelp.textContent = "Choose an image smaller than 10 MB.";
@@ -665,8 +617,6 @@
                 }
                 try {
                     posterData = await compressPoster(poster);
-                    posterUrl = "";
-                    posterSource = "";
                 } catch (error) {
                     posterHelp.textContent = error.message;
                     return;
@@ -681,9 +631,7 @@
                 date: String(data.get("date") || ""),
                 rating: String(data.get("rating") || ""),
                 review: String(data.get("review") || "").trim(),
-                posterData,
-                posterUrl,
-                posterSource
+                posterData
             };
             movies.unshift(movie);
             try {
