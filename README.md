@@ -92,7 +92,7 @@
 <body>
 
     <header>
-        <h1>🎬 My Movie Diary</h1>
+        <h1> My Movie Diary</h1>
         <p>Keep track of every movie you've watched.</p>
     </header>
 
